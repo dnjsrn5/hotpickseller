@@ -1,0 +1,23 @@
+name = "hotpickseller-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# ── 환경변수 (민감 정보는 아래 secrets 방식 권장) ──────────────
+# 터미널에서 설정:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put FIREBASE_PROJECT_ID
+#   wrangler secret put FIREBASE_API_KEY
+
+[vars]
+# 비민감 설정값만 여기에 (API 키는 절대 여기 넣지 마세요)
+ENVIRONMENT = "production"
+
+# ── 개발 환경 ─────────────────────────────────────────────────
+[dev]
+port = 8787
+local_protocol = "http"
+
+# ── 라우트 (커스텀 도메인 사용 시) ───────────────────────────
+# [[routes]]
+# pattern = "api.hotpickseller.com/*"
+# zone_name = "hotpickseller.com"

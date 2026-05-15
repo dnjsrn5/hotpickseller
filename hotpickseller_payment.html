@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>핫픽셀러 — 구독 결제</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+<!-- 토스페이먼츠 SDK -->
+<script src="https://js.tosspayments.com/v1/payment"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ── Firebase 설정 (dashboard.html과 동일한 값 입력) ──
+  const firebaseConfig = {
+    apiKey:            "여기에_FIREBASE_API_KEY",
+    authDomain:        "hotpickseller.firebaseapp.com",
+    projectId:         "hotpickseller",
+    storageBucket:     "hotpickseller.appspot.com",
+    messagingSenderId: "여기에_MESSAGING_SENDER_ID",
+    appId:             "여기에_APP_ID",
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  window.__firebase = { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, doc, setDoc };
+</script>
+<style>
+:root {
+  --hot: #FF3B1F; --hot2: #FF6B35;
+  --dark: #0D0D0D; --dark2: #161616; --dark3: #1F1F1F; --dark4: #252525;
+  --light: #F5F2EC; --muted: #666; --border: rgba(255,255,255,0.07);
+  --green: #22C55E; --amber: #F59E0B;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--dark); color: var(--light);
+  font-family: 'Noto Sans KR', sans-serif; font-weight: 300;
+  min-height: 100vh; display: flex; flex-direction: column;
+}
+
+/* NAV */
+nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 48px; border-bottom: 1px solid var(--border);
+  background: rgba(13,13,13,0.9); backdrop-filter: blur(12px);
+  position: sticky; top: 0; z-index: 50;
+}
+.logo { font-family: 'Bebas Neue', sans-serif; font-size: 24px; letter-spacing: 2px; }
+.logo span { color: var(--hot); }
+.nav-back {
+  font-size: 13px; color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; gap: 6px; text-decoration: none;
+  transition: color 0.15s;
+}
+.nav-back:hover { color: var(--light); }
+
+/* MAIN */
+.page { max-width: 960px; margin: 0 auto; padding: 60px 24px; width: 100%; }
+.page-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 56px; letter-spacing: 2px; margin-bottom: 8px;
+}
+.page-title span { color: var(--hot); }
+.page-sub { font-size: 15px; color: var(--muted); margin-bottom: 48px; }
+
+/* PLAN GRID */
+.plan-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 12px; margin-bottom: 48px;
+}
+.plan-card {
+  background: var(--dark2); border: 2px solid var(--border);
+  border-radius: 12px; padding: 32px 28px;
+  cursor: pointer; transition: all 0.2s; position: relative;
+}
+.plan-card:hover { border-color: rgba(255,59,31,0.4); }
+.plan-card.selected { border-color: var(--hot); background: rgba(255,59,31,0.05); }
+.plan-card.featured { border-color: var(--hot); }
+
+.plan-badge {
+  position: absolute; top: -12px; left: 28px;
+  background: var(--hot); color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 12px; border-radius: 20px; letter-spacing: 0.5px;
+}
+.plan-selected-badge {
+  position: absolute; top: -12px; right: 28px;
+  background: var(--green); color: #fff;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 12px; border-radius: 20px;
+  display: none;
+}
+.plan-card.selected .plan-selected-badge { display: block; }
+
+.plan-name {
+  font-size: 11px; font-weight: 500; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+}
+.plan-price {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 48px; letter-spacing: 1px; line-height: 1; margin-bottom: 4px;
+}
+.plan-price sup { font-size: 20px; }
+.plan-period { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+.plan-features { list-style: none; margin-bottom: 0; }
+.plan-features li {
+  font-size: 13px; color: rgba(245,242,236,0.7);
+  padding: 7px 0; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+.plan-features li:last-child { border-bottom: none; }
+.plan-features li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+
+/* CHECKOUT FORM */
+.checkout-box {
+  background: var(--dark2); border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+}
+.checkout-header {
+  padding: 20px 28px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.checkout-title { font-size: 15px; font-weight: 500; }
+.checkout-plan-badge {
+  background: rgba(255,59,31,0.1); border: 1px solid rgba(255,59,31,0.3);
+  color: var(--hot2); font-size: 12px; font-weight: 500;
+  padding: 4px 12px; border-radius: 20px;
+}
+
+.checkout-body { padding: 28px; }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.form-group { display: flex; flex-direction: column; gap: 8px; }
+.form-group.full { grid-column: 1 / -1; }
+.form-label { font-size: 12px; color: var(--muted); letter-spacing: 0.5px; }
+.form-input {
+  background: var(--dark3); border: 1px solid var(--border);
+  color: var(--light); padding: 12px 16px; font-size: 14px;
+  font-family: 'Noto Sans KR', sans-serif;
+  border-radius: 8px; outline: none; transition: border-color 0.2s;
+  width: 100%;
+}
+.form-input:focus { border-color: rgba(255,59,31,0.5); }
+.form-input::placeholder { color: var(--muted); }
+
+/* 결제 수단 */
+.payment-methods {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 8px; margin-bottom: 24px;
+}
+.payment-method {
+  background: var(--dark3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 16px;
+  display: flex; align-items: center; gap: 10px;
+  cursor: pointer; transition: all 0.15s;
+  font-size: 13px; color: var(--muted);
+}
+.payment-method:hover { border-color: rgba(255,255,255,0.15); color: var(--light); }
+.payment-method.selected { border-color: var(--hot); background: rgba(255,59,31,0.08); color: var(--light); }
+.payment-icon { font-size: 18px; }
+
+/* 요약 */
+.order-summary {
+  background: var(--dark3); border-radius: 8px; padding: 20px;
+  margin-bottom: 24px;
+}
+.summary-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; font-size: 13px; color: rgba(245,242,236,0.7);
+  border-bottom: 1px solid var(--border);
+}
+.summary-row:last-child { border-bottom: none; font-size: 15px; font-weight: 500; color: var(--light); padding-top: 12px; margin-top: 4px; }
+.summary-row .price { color: var(--light); }
+.summary-row:last-child .price { color: var(--hot2); font-family: 'Bebas Neue', sans-serif; font-size: 22px; }
+
+/* 약관 */
+.terms-box { margin-bottom: 24px; }
+.terms-check {
+  display: flex; align-items: flex-start; gap: 10px;
+  font-size: 12px; color: var(--muted); cursor: pointer;
+  margin-bottom: 8px; line-height: 1.5;
+}
+.terms-check input { margin-top: 2px; accent-color: var(--hot); flex-shrink: 0; }
+.terms-link { color: var(--hot2); text-decoration: underline; cursor: pointer; }
+
+/* 결제 버튼 */
+.pay-btn {
+  width: 100%; padding: 16px;
+  background: var(--hot); border: none; color: #fff;
+  font-size: 16px; font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  border-radius: 8px; cursor: pointer;
+  transition: all 0.2s; letter-spacing: 0.3px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.pay-btn:hover { background: var(--hot2); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,59,31,0.3); }
+.pay-btn:disabled { background: var(--muted); cursor: not-allowed; transform: none; box-shadow: none; }
+
+.secure-badges {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin-top: 16px;
+}
+.secure-badge { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+
+/* 성공 화면 */
+.success-screen {
+  text-align: center; padding: 80px 24px;
+  display: none;
+}
+.success-icon { font-size: 64px; margin-bottom: 24px; }
+.success-title {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 48px; letter-spacing: 2px; margin-bottom: 12px;
+}
+.success-title span { color: var(--hot); }
+.success-sub { font-size: 15px; color: var(--muted); margin-bottom: 40px; line-height: 1.7; }
+.success-btn {
+  background: var(--hot); border: none; color: #fff;
+  padding: 14px 36px; font-size: 15px; font-weight: 500;
+  font-family: 'Noto Sans KR', sans-serif;
+  border-radius: 8px; cursor: pointer; transition: background 0.2s;
+}
+.success-btn:hover { background: var(--hot2); }
+
+/* 로딩 오버레이 */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.8); backdrop-filter: blur(4px);
+  z-index: 100; display: none;
+  align-items: center; justify-content: center; flex-direction: column; gap: 20px;
+}
+.loading-overlay.show { display: flex; }
+.spinner-large {
+  width: 48px; height: 48px;
+  border: 3px solid var(--dark4); border-top-color: var(--hot);
+  border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 15px; color: var(--light); }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo"><span>핫픽</span>셀러</div>
+  <a class="nav-back" href="#">← 대시보드로 돌아가기</a>
+</nav>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loading">
+  <div class="spinner-large"></div>
+  <div class="loading-text" id="loading-text">결제 준비중...</div>
+</div>
+
+<!-- MAIN -->
+<div class="page">
+
+  <!-- 성공 화면 (숨김) -->
+  <div class="success-screen" id="success-screen">
+    <div class="success-icon">🎉</div>
+    <div class="success-title">결제 <span>완료!</span></div>
+    <p class="success-sub">
+      핫픽셀러 구독이 시작됐어요.<br>
+      지금 바로 트렌드 키워드를 탐색하고 첫 상품을 등록해보세요!
+    </p>
+    <button class="success-btn" onclick="location.href='hotpickseller_dashboard_v2.html'">
+      대시보드 바로가기 →
+    </button>
+  </div>
+
+  <!-- 결제 폼 -->
+  <div id="checkout-view">
+    <div class="page-title">구독 <span>시작하기</span></div>
+    <p class="page-sub">플랜을 선택하고 결제하면 즉시 이용 가능해요</p>
+
+    <!-- 플랜 선택 -->
+    <div class="plan-grid" id="plan-grid">
+
+      <div class="plan-card" id="plan-starter" onclick="selectPlan('starter')">
+        <div class="plan-selected-badge">✓ 선택됨</div>
+        <div class="plan-name">스타터</div>
+        <div class="plan-price"><sup>₩</sup>39,000</div>
+        <div class="plan-period">/ 월</div>
+        <ul class="plan-features">
+          <li>트렌드 키워드 일 20개</li>
+          <li>상품 매칭 월 30건</li>
+          <li>AI 상세페이지 월 30건</li>
+          <li>도매꾹 연동</li>
+        </ul>
+      </div>
+
+      <div class="plan-card featured selected" id="plan-pro" onclick="selectPlan('pro')">
+        <div class="plan-badge">가장 인기</div>
+        <div class="plan-selected-badge">✓ 선택됨</div>
+        <div class="plan-name">프로</div>
+        <div class="plan-price"><sup>₩</sup>89,000</div>
+        <div class="plan-period">/ 월</div>
+        <ul class="plan-features">
+          <li>트렌드 키워드 무제한</li>
+          <li>상품 매칭 무제한</li>
+          <li>AI 상세페이지 무제한</li>
+          <li>3개 도매 사이트 연동</li>
+          <li>마진 자동 계산</li>
+          <li>Wing 반자동 업로드</li>
+        </ul>
+      </div>
+
+      <div class="plan-card" id="plan-team" onclick="selectPlan('team')">
+        <div class="plan-selected-badge">✓ 선택됨</div>
+        <div class="plan-name">팀</div>
+        <div class="plan-price"><sup>₩</sup>189,000</div>
+        <div class="plan-period">/ 월</div>
+        <ul class="plan-features">
+          <li>프로 기능 전체 포함</li>
+          <li>팀원 5명까지</li>
+          <li>전용 고객 지원</li>
+          <li>API 접근</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <!-- 결제 폼 -->
+    <div class="checkout-box">
+      <div class="checkout-header">
+        <div class="checkout-title">결제 정보 입력</div>
+        <div class="checkout-plan-badge" id="selected-plan-badge">프로 플랜 · ₩89,000/월</div>
+      </div>
+      <div class="checkout-body">
+
+        <!-- 구매자 정보 -->
+        <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;">구매자 정보</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">이름</label>
+            <input class="form-input" id="buyer-name" type="text" placeholder="홍길동">
+          </div>
+          <div class="form-group">
+            <label class="form-label">이메일</label>
+            <input class="form-input" id="buyer-email" type="email" placeholder="hello@example.com">
+          </div>
+          <div class="form-group full">
+            <label class="form-label">휴대폰</label>
+            <input class="form-input" id="buyer-phone" type="tel" placeholder="010-0000-0000">
+          </div>
+        </div>
+
+        <!-- 결제 수단 -->
+        <div style="font-size:12px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px;">결제 수단</div>
+        <div class="payment-methods">
+          <div class="payment-method selected" id="pm-card" onclick="selectMethod('card')">
+            <span class="payment-icon">💳</span> 신용카드
+          </div>
+          <div class="payment-method" id="pm-transfer" onclick="selectMethod('transfer')">
+            <span class="payment-icon">🏦</span> 계좌이체
+          </div>
+          <div class="payment-method" id="pm-phone" onclick="selectMethod('phone')">
+            <span class="payment-icon">📱</span> 휴대폰결제
+          </div>
+        </div>
+
+        <!-- 주문 요약 -->
+        <div class="order-summary">
+          <div class="summary-row">
+            <span id="summary-plan-name">프로 플랜</span>
+            <span class="price" id="summary-price">₩89,000</span>
+          </div>
+          <div class="summary-row">
+            <span>할인 (베타 첫 달)</span>
+            <span class="price" style="color:var(--green)">-₩0</span>
+          </div>
+          <div class="summary-row">
+            <span>부가세 (VAT 10%)</span>
+            <span class="price" id="summary-vat">₩8,090</span>
+          </div>
+          <div class="summary-row">
+            <span>최종 결제금액</span>
+            <span class="price" id="summary-total">89,000</span>
+          </div>
+        </div>
+
+        <!-- 약관 동의 -->
+        <div class="terms-box">
+          <label class="terms-check">
+            <input type="checkbox" id="agree-all" onclick="toggleAll(this)">
+            <span>전체 동의</span>
+          </label>
+          <label class="terms-check">
+            <input type="checkbox" id="agree-terms">
+            <span><span class="terms-link">[필수] 서비스 이용약관</span> 동의</span>
+          </label>
+          <label class="terms-check">
+            <input type="checkbox" id="agree-privacy">
+            <span><span class="terms-link">[필수] 개인정보 처리방침</span> 동의</span>
+          </label>
+          <label class="terms-check">
+            <input type="checkbox" id="agree-refund">
+            <span>[필수] 구독 서비스 환불 정책 동의 (결제 후 7일 이내 전액 환불)</span>
+          </label>
+        </div>
+
+        <!-- 결제 버튼 -->
+        <button class="pay-btn" id="pay-btn" onclick="requestPayment()">
+          💳 <span id="pay-btn-text">₩89,000 결제하기</span>
+        </button>
+
+        <div class="secure-badges">
+          <div class="secure-badge">🔒 SSL 보안 결제</div>
+          <div class="secure-badge">✓ 토스페이먼츠</div>
+          <div class="secure-badge">📋 7일 환불 보장</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══ 설정 ══════════════════════════════════════
+// ⚠️ 토스페이먼츠 대시보드(https://developers.tosspayments.com)에서
+//    테스트 클라이언트 키를 발급받아 아래에 입력하세요
+const TOSS_CLIENT_KEY = "test_ck_여기에_토스_클라이언트키_입력";
+
+const PLANS = {
+  starter: { name: "스타터 플랜", price: 39000, vat: 3545 },
+  pro:     { name: "프로 플랜",   price: 89000, vat: 8090 },
+  team:    { name: "팀 플랜",     price: 189000, vat: 17181 },
+};
+
+let selectedPlan = "pro";
+let selectedMethod = "card";
+
+// ══ 플랜 선택 ════════════════════════════════
+function selectPlan(plan) {
+  selectedPlan = plan;
+  document.querySelectorAll(".plan-card").forEach(el => el.classList.remove("selected"));
+  document.getElementById(`plan-${plan}`).classList.add("selected");
+
+  const p = PLANS[plan];
+  document.getElementById("selected-plan-badge").textContent = `${p.name} · ₩${p.price.toLocaleString()}/월`;
+  document.getElementById("summary-plan-name").textContent = p.name;
+  document.getElementById("summary-price").textContent = `₩${p.price.toLocaleString()}`;
+  document.getElementById("summary-vat").textContent = `₩${p.vat.toLocaleString()}`;
+  document.getElementById("summary-total").textContent = p.price.toLocaleString();
+  document.getElementById("pay-btn-text").textContent = `₩${p.price.toLocaleString()} 결제하기`;
+}
+
+// ══ 결제 수단 선택 ══════════════════════════
+function selectMethod(method) {
+  selectedMethod = method;
+  document.querySelectorAll(".payment-method").forEach(el => el.classList.remove("selected"));
+  document.getElementById(`pm-${method}`).classList.add("selected");
+}
+
+// ══ 전체 약관 동의 ══════════════════════════
+function toggleAll(el) {
+  ["agree-terms", "agree-privacy", "agree-refund"].forEach(id => {
+    document.getElementById(id).checked = el.checked;
+  });
+}
+
+// ══ 토스페이먼츠 결제 요청 ══════════════════
+async function requestPayment() {
+  const name = document.getElementById("buyer-name").value.trim();
+  const email = document.getElementById("buyer-email").value.trim();
+  const phone = document.getElementById("buyer-phone").value.trim();
+  const agreed = document.getElementById("agree-terms").checked &&
+                 document.getElementById("agree-privacy").checked &&
+                 document.getElementById("agree-refund").checked;
+
+  // 유효성 검사
+  if (!name)   return alert("이름을 입력해주세요");
+  if (!email)  return alert("이메일을 입력해주세요");
+  if (!phone)  return alert("휴대폰 번호를 입력해주세요");
+  if (!agreed) return alert("필수 약관에 모두 동의해주세요");
+
+  const plan = PLANS[selectedPlan];
+  const orderId = `order_${Date.now()}`;
+
+  // 결제 방식 매핑
+  const methodMap = {
+    card: "카드",
+    transfer: "계좌이체",
+    phone: "휴대폰",
+  };
+
+  showLoading("토스페이먼츠 결제창 열리는 중...");
+
+  try {
+    const tossPayments = TossPayments(TOSS_CLIENT_KEY);
+
+    await tossPayments.requestPayment(methodMap[selectedMethod], {
+      amount: plan.price,
+      orderId,
+      orderName: `핫픽셀러 ${plan.name} 구독`,
+      customerName: name,
+      customerEmail: email,
+      customerMobilePhone: phone.replace(/-/g, ""),
+      successUrl: `${window.location.origin}/payment/success?plan=${selectedPlan}`,
+      failUrl: `${window.location.origin}/payment/fail`,
+    });
+
+  } catch (err) {
+    hideLoading();
+    if (err.code === "USER_CANCEL") {
+      // 사용자가 직접 닫은 경우 — 조용히 처리
+      return;
+    }
+    // 테스트 키 미설정 시 데모 성공 처리
+    if (TOSS_CLIENT_KEY.includes("여기에")) {
+      hideLoading();
+      showLoading("결제 처리중...");
+      setTimeout(() => {
+        hideLoading();
+        showSuccess(selectedPlan, email);
+      }, 1500);
+      return;
+    }
+    alert(`결제 오류: ${err.message}`);
+  }
+}
+
+function showLoading(text) {
+  document.getElementById("loading-text").textContent = text;
+  document.getElementById("loading").classList.add("show");
+}
+function hideLoading() {
+  document.getElementById("loading").classList.remove("show");
+}
+async function showSuccess(plan, email) {
+  document.getElementById("checkout-view").style.display = "none";
+  document.getElementById("success-screen").style.display = "block";
+
+  // Firebase Auth 계정 생성 + Firestore에 구독 정보 저장
+  const fb = window.__firebase;
+  if (!fb || !email) return;
+
+  const name = document.getElementById("buyer-name")?.value.trim() || "";
+  const tempPassword = `Hotpick${Date.now().toString(36)}!`;
+
+  try {
+    // 신규 가입 또는 기존 계정 로그인
+    let userCred;
+    try {
+      userCred = await fb.createUserWithEmailAndPassword(fb.auth, email, tempPassword);
+    } catch (e) {
+      if (e.code === "auth/email-already-in-use") {
+        userCred = await fb.signInWithEmailAndPassword(fb.auth, email, tempPassword);
+      } else throw e;
+    }
+
+    const uid = userCred.user.uid;
+
+    // Firestore에 구독 정보 저장
+    await fb.setDoc(fb.doc(fb.db, "subscriptions", uid), {
+      plan: plan || selectedPlan,
+      email,
+      name,
+      startedAt: Date.now(),
+      expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30일
+      status: "active",
+    });
+
+    console.log("✅ Firebase 구독 등록 완료:", email, plan);
+
+    // 성공 화면에 임시 비밀번호 안내 표시
+    const successEl = document.getElementById("success-screen");
+    if (successEl) {
+      const notice = document.createElement("p");
+      notice.style.cssText = "margin-top:16px;font-size:12px;color:#666;text-align:center";
+      notice.textContent = `임시 비밀번호: ${tempPassword} (첫 로그인 후 변경하세요)`;
+      successEl.appendChild(notice);
+    }
+  } catch (e) {
+    console.warn("Firebase 구독 등록 실패:", e.message);
+  }
+}
+</script>
+</body>
+</html>

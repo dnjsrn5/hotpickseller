@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>핫픽셀러 — 로그인</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp }                                      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged,
+           signInWithEmailAndPassword,
+           createUserWithEmailAndPassword,
+           signInWithPopup, GoogleAuthProvider,
+           sendPasswordResetEmail }                             from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc, setDoc }                 from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ── Firebase 설정 (본인 프로젝트 값으로 교체) ──────────────
+  const firebaseConfig = {
+    apiKey:            "여기에_FIREBASE_API_KEY",
+    authDomain:        "hotpickseller.firebaseapp.com",
+    projectId:         "hotpickseller",
+    storageBucket:     "hotpickseller.appspot.com",
+    messagingSenderId: "여기에_MESSAGING_SENDER_ID",
+    appId:             "여기에_APP_ID",
+  };
+
+  const app      = initializeApp(firebaseConfig);
+  const auth     = getAuth(app);
+  const db       = getFirestore(app);
+  const provider = new GoogleAuthProvider();
+
+  // 이미 로그인된 경우 대시보드로 바로 이동
+  onAuthStateChanged(auth, (user) => {
+    if (user) redirectToDashboard();
+  });
+
+  // ── 대시보드 이동 ──
+  function redirectToDashboard() {
+    window.location.href = "hotpickseller_dashboard_v2.html";
+  }
+
+  // ── Firestore에 유저 정보 저장 (최초 1회) ──
+  async function ensureUserDoc(user) {
+    const ref = doc(db, "users", user.uid);
+    const snap = await getDoc(ref);
+    if (!snap.exists()) {
+      await setDoc(ref, {
+        uid:       user.uid,
+        email:     user.email,
+        name:      user.displayName || "",
+        photoURL:  user.photoURL   || "",
+        plan:      "free",
+        createdAt: Date.now(),
+      });
+    }
+  }
+
+  // ── 이메일 로그인 ──
+  window.loginWithEmail = async function () {
+    const email    = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const isSignup = document.getElementById("mode-signup").classList.contains("active");
+
+    if (!email || !password) return showError("이메일과 비밀번호를 입력해주세요");
+    if (isSignup && password.length < 6) return showError("비밀번호는 6자 이상이어야 해요");
+
+    setLoading(true);
+    try {
+      let cred;
+      if (isSignup) {
+        cred = await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        cred = await signInWithEmailAndPassword(auth, email, password);
+      }
+      await ensureUserDoc(cred.user);
+      redirectToDashboard();
+    } catch (e) {
+      setLoading(false);
+      showError(translateError(e.code));
+    }
+  };
+
+  // ── 구글 로그인 ──
+  window.loginWithGoogle = async function () {
+    setLoading(true);
+    try {
+      const cred = await signInWithPopup(auth, provider);
+      await ensureUserDoc(cred.user);
+      redirectToDashboard();
+    } catch (e) {
+      setLoading(false);
+      if (e.code !== "auth/popup-closed-by-user") showError(translateError(e.code));
+    }
+  };
+
+  // ── 비밀번호 재설정 ──
+  window.resetPassword = async function () {
+    const email = document.getElementById("email").value.trim();
+    if (!email) return showError("이메일을 먼저 입력해주세요");
+    try {
+      await sendPasswordResetEmail(auth, email);
+      showError("재설정 이메일을 보냈어요 ✉️", true);
+    } catch (e) {
+      showError(translateError(e.code));
+    }
+  };
+
+  function translateError(code) {
+    const map = {
+      "auth/invalid-email":          "올바른 이메일 형식이 아니에요",
+      "auth/user-not-found":         "등록되지 않은 이메일이에요",
+      "auth/wrong-password":         "비밀번호가 맞지 않아요",
+      "auth/email-already-in-use":   "이미 사용 중인 이메일이에요",
+      "auth/weak-password":          "비밀번호가 너무 짧아요 (6자 이상)",
+      "auth/too-many-requests":      "잠시 후 다시 시도해주세요",
+      "auth/invalid-credential":     "이메일 또는 비밀번호를 확인해주세요",
+      "auth/network-request-failed": "네트워크 연결을 확인해주세요",
+    };
+    return map[code] || "오류가 발생했어요. 다시 시도해주세요";
+  }
+</script>
+
+<style>
+:root {
+  --hot:    #FF3B1F;
+  --hot2:   #FF6B35;
+  --dark:   #0D0D0D;
+  --dark2:  #161616;
+  --dark3:  #1F1F1F;
+  --light:  #F5F2EC;
+  --muted:  #888;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.13);
+  --green: #22C55E;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--dark);
+  color: var(--light);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 300;
+}
+
+/* ── NOISE ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none; z-index: 0; opacity: 0.6;
+}
+
+/* ── BG GLOW ── */
+.bg-glow {
+  position: fixed;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(255,59,31,0.07) 0%, transparent 70%);
+  top: -100px; left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none; z-index: 0;
+}
+
+/* ── LAYOUT ── */
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  position: relative; z-index: 1;
+}
+
+/* ── LOGO ── */
+.logo-wrap {
+  text-align: center;
+  margin-bottom: 32px;
+}
+.logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 30px;
+  letter-spacing: 3px;
+  color: var(--light);
+  display: block;
+}
+.logo span { color: var(--hot); }
+.logo-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* ── CARD ── */
+.card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--dark2);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+
+/* ── MODE TABS ── */
+.mode-tabs {
+  display: flex;
+  background: var(--dark3);
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 28px;
+}
+.mode-tab {
+  flex: 1;
+  text-align: center;
+  padding: 9px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Noto Sans KR', sans-serif;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.mode-tab.active {
+  background: var(--hot);
+  color: #fff;
+}
+
+/* ── FORM ── */
+.form-group { margin-bottom: 16px; }
+.form-label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 7px;
+  letter-spacing: 0.3px;
+}
+.form-input {
+  width: 100%;
+  background: var(--dark3);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: var(--light);
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-input::placeholder { color: var(--muted); }
+.form-input:focus { border-color: var(--hot); }
+
+/* ── 비밀번호 토글 ── */
+.input-wrap { position: relative; }
+.toggle-pw {
+  position: absolute;
+  right: 13px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  color: var(--muted); cursor: pointer;
+  font-size: 17px; padding: 0;
+  line-height: 1;
+}
+.toggle-pw:hover { color: var(--light); }
+
+/* ── 비밀번호 찾기 ── */
+.forgot {
+  display: block;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: -10px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.forgot:hover { color: var(--light); }
+
+/* ── 에러/성공 메시지 ── */
+.msg-box {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  margin-bottom: 16px;
+  display: none;
+}
+.msg-box.error   { background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.3); color: #FCA5A5; }
+.msg-box.success { background: rgba(34,197,94,0.12);  border: 1px solid rgba(34,197,94,0.3);  color: #86EFAC; }
+.msg-box.show    { display: block; }
+
+/* ── CTA 버튼 ── */
+.btn-primary {
+  width: 100%;
+  background: var(--hot);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+  letter-spacing: 0.3px;
+  margin-bottom: 14px;
+  position: relative;
+}
+.btn-primary:hover:not(:disabled) { background: var(--hot2); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── 로딩 스피너 ── */
+.spinner-sm {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── 구분선 ── */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.divider::before, .divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* ── 구글 버튼 ── */
+.btn-google {
+  width: 100%;
+  background: var(--dark3);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 14px;
+  font-family: 'Noto Sans KR', sans-serif;
+  color: var(--light);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+}
+.btn-google:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.2); }
+.btn-google svg { flex-shrink: 0; }
+
+/* ── 하단 링크 ── */
+.card-footer {
+  text-align: center;
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.card-footer a {
+  color: var(--hot2);
+  text-decoration: none;
+  font-weight: 500;
+}
+.card-footer a:hover { text-decoration: underline; }
+
+/* ── 약관 ── */
+.terms-note {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 16px;
+  line-height: 1.6;
+}
+.terms-note a { color: var(--muted); text-underline-offset: 2px; }
+.terms-note a:hover { color: var(--light); }
+</style>
+</head>
+<body>
+
+<div class="bg-glow"></div>
+
+<div class="page">
+
+  <!-- 로고 -->
+  <div class="logo-wrap">
+    <a class="logo" href="index.html"><span>핫픽</span>셀러</a>
+    <div class="logo-sub">쿠팡 위탁판매 자동화</div>
+  </div>
+
+  <!-- 로그인 카드 -->
+  <div class="card">
+
+    <!-- 로그인 / 회원가입 탭 -->
+    <div class="mode-tabs">
+      <button id="mode-login"  class="mode-tab active" onclick="switchMode('login')">로그인</button>
+      <button id="mode-signup" class="mode-tab"        onclick="switchMode('signup')">회원가입</button>
+    </div>
+
+    <!-- 메시지 박스 -->
+    <div class="msg-box" id="msg-box"></div>
+
+    <!-- 이메일 -->
+    <div class="form-group">
+      <label class="form-label" for="email">이메일</label>
+      <input class="form-input" id="email" type="email" placeholder="example@email.com"
+             onkeydown="if(event.key==='Enter') focusPw()">
+    </div>
+
+    <!-- 비밀번호 -->
+    <div class="form-group">
+      <label class="form-label" for="password">비밀번호</label>
+      <div class="input-wrap">
+        <input class="form-input" id="password" type="password" placeholder="비밀번호 입력"
+               style="padding-right:42px" onkeydown="if(event.key==='Enter') loginWithEmail()">
+        <button class="toggle-pw" onclick="togglePw()" tabindex="-1">👁</button>
+      </div>
+    </div>
+
+    <!-- 비밀번호 찾기 (로그인 모드에서만) -->
+    <span class="forgot" id="forgot-link" onclick="resetPassword()">비밀번호를 잊었나요?</span>
+
+    <!-- 로그인/가입 버튼 -->
+    <button class="btn-primary" id="btn-submit" onclick="loginWithEmail()">
+      <span id="btn-label">로그인</span>
+    </button>
+
+    <!-- 구분선 -->
+    <div class="divider">또는</div>
+
+    <!-- 구글 로그인 -->
+    <button class="btn-google" onclick="loginWithGoogle()">
+      <!-- Google G 로고 SVG -->
+      <svg width="18" height="18" viewBox="0 0 18 18">
+        <path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/>
+        <path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/>
+        <path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/>
+        <path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961L3.964 6.293C4.672 4.166 6.656 3.58 9 3.58z"/>
+      </svg>
+      Google로 계속하기
+    </button>
+
+    <!-- 약관 안내 -->
+    <p class="terms-note">
+      계속하면 핫픽셀러의
+      <a href="#">이용약관</a> 및 <a href="#">개인정보처리방침</a>에<br>동의하는 것으로 간주합니다.
+    </p>
+
+  </div>
+
+  <!-- 하단 링크 -->
+  <div class="card-footer">
+    아직 계정이 없으신가요?
+    <a href="hotpickseller_payment.html">요금제 보기 →</a>
+  </div>
+
+</div>
+
+<script>
+// ── 모드 전환 (로그인 ↔ 회원가입) ──────────────
+function switchMode(mode) {
+  const isLogin = mode === "login";
+  document.getElementById("mode-login").classList.toggle("active",  isLogin);
+  document.getElementById("mode-signup").classList.toggle("active", !isLogin);
+  document.getElementById("btn-label").textContent  = isLogin ? "로그인" : "회원가입";
+  document.getElementById("forgot-link").style.display = isLogin ? "block" : "none";
+  clearMsg();
+}
+
+// ── 비밀번호 토글 ──────────────────────────────
+function togglePw() {
+  const input = document.getElementById("password");
+  input.type = input.type === "password" ? "text" : "password";
+}
+
+// ── 포커스 이동 ────────────────────────────────
+function focusPw() {
+  document.getElementById("password").focus();
+}
+
+// ── 에러/성공 메시지 ───────────────────────────
+function showError(msg, isSuccess = false) {
+  const box = document.getElementById("msg-box");
+  box.textContent  = msg;
+  box.className    = `msg-box ${isSuccess ? "success" : "error"} show`;
+}
+function clearMsg() {
+  document.getElementById("msg-box").className = "msg-box";
+}
+
+// ── 로딩 상태 ──────────────────────────────────
+function setLoading(on) {
+  const btn   = document.getElementById("btn-submit");
+  const label = document.getElementById("btn-label");
+  btn.disabled = on;
+  label.innerHTML = on
+    ? `<span class="spinner-sm"></span> 처리중...`
+    : (document.getElementById("mode-signup").classList.contains("active") ? "회원가입" : "로그인");
+}
+</script>
+
+</body>
+</html>

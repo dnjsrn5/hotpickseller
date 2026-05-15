@@ -1,0 +1,16 @@
+{
+  "name": "hotpickseller",
+  "version": "1.0.0",
+  "description": "핫픽셀러 — 쿠팡 위탁판매 자동화",
+  "scripts": {
+    "dev:worker": "cd worker && wrangler dev",
+    "deploy:worker": "cd worker && wrangler deploy",
+    "deploy:hosting": "firebase deploy --only hosting",
+    "deploy:all": "npm run deploy:worker && npm run deploy:hosting",
+    "setup:secrets": "node scripts/setup-secrets.js"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0",
+    "firebase-tools": "^13.0.0"
+  }
+}

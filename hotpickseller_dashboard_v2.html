@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>핫픽셀러 대시보드</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, collection, getDocs, addDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  // ── Firebase 설정 (Firebase Console > 프로젝트 설정 > 앱에서 복사) ──
+  const firebaseConfig = {
+    apiKey:            "여기에_FIREBASE_API_KEY",
+    authDomain:        "hotpickseller.firebaseapp.com",
+    projectId:         "hotpickseller",
+    storageBucket:     "hotpickseller.appspot.com",
+    messagingSenderId: "여기에_MESSAGING_SENDER_ID",
+    appId:             "여기에_APP_ID",
+  };
+
+  const app  = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db   = getFirestore(app);
+
+  // 전역으로 노출 (아래 일반 스크립트에서 사용)
+  window.__firebase = { auth, db, signOut, onAuthStateChanged, collection, getDocs, addDoc, query, orderBy, limit };
+
+  // 비로그인 사용자 → 로그인 페이지로 이동
+  onAuthStateChanged(auth, (user) => {
+    if (!user) window.location.href = "login.html";
+  });
+</script>
+<style>
+:root {
+  --hot: #FF3B1F;
+  --hot2: #FF6B35;
+  --dark: #0D0D0D;
+  --dark2: #161616;
+  --dark3: #1F1F1F;
+  --dark4: #252525;
+  --light: #F5F2EC;
+  --muted: #666;
+  --muted2: #444;
+  --border: rgba(255,255,255,0.07);
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --sidebar: 220px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--dark);
+  color: var(--light);
+  font-family: 'Noto Sans KR', sans-serif;
+  font-weight: 300;
+  display: flex;
+  min-height: 100vh;
+  font-size: 14px;
+}
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: var(--sidebar);
+  background: var(--dark2);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  z-index: 50;
+}
+.sidebar-logo {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--border);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 22px;
+  letter-spacing: 2px;
+}
+.sidebar-logo span { color: var(--hot); }
+.sidebar-nav { flex: 1; padding: 16px 0; }
+.nav-section-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 16px 20px 8px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 20px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.nav-item:hover { color: var(--light); background: rgba(255,255,255,0.03); }
+.nav-item.active { color: var(--light); background: rgba(255,59,31,0.08); border-left-color: var(--hot); }
+.nav-icon { font-size: 15px; width: 20px; text-align: center; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--hot);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 20px;
+}
+.sidebar-bottom { padding: 16px; border-top: 1px solid var(--border); }
+.user-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.user-card:hover { background: var(--dark3); }
+.user-avatar {
+  width: 32px; height: 32px;
+  background: var(--hot);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
+}
+.user-name { font-size: 13px; font-weight: 500; color: var(--light); }
+.user-plan { font-size: 11px; color: var(--hot2); }
+
+/* ── MAIN ── */
+.main { margin-left: var(--sidebar); flex: 1; display: flex; flex-direction: column; }
+.topbar {
+  height: 56px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 28px;
+  background: rgba(13,13,13,0.8);
+  backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 40;
+}
+.topbar-title { font-size: 15px; font-weight: 500; }
+.topbar-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-btn {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--hot); border: none; color: #fff;
+  padding: 8px 16px; border-radius: 6px;
+  font-size: 13px; font-weight: 500;
+  font-family: 'Noto Sans KR', sans-serif;
+  cursor: pointer; transition: background 0.2s;
+}
+.topbar-btn:hover { background: var(--hot2); }
+
+/* API 상태 뱃지 */
+.api-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--muted);
+  padding: 6px 12px;
+  background: var(--dark3);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+.api-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--muted2);
+}
+.api-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.api-dot.offline { background: #EF4444; }
+
+/* ── CONTENT ── */
+.content { padding: 28px; flex: 1; }
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px; margin-bottom: 24px;
+}
+.stat-card {
+  background: var(--dark2);
+  border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px;
+  position: relative; overflow: hidden;
+  transition: border-color 0.2s;
+}
+.stat-card:hover { border-color: rgba(255,255,255,0.12); }
+.stat-label {
+  font-size: 11px; color: var(--muted);
+  letter-spacing: 0.5px; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.stat-value {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 36px; letter-spacing: 1px;
+  line-height: 1; color: var(--light); margin-bottom: 8px;
+}
+.stat-change { font-size: 11px; display: flex; align-items: center; gap: 4px; }
+.stat-change.up { color: var(--green); }
+.stat-change.neutral { color: var(--muted); }
+
+/* ── MAIN GRID ── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 12px; margin-bottom: 12px;
+}
+.card {
+  background: var(--dark2);
+  border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+}
+.card-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title {
+  font-size: 13px; font-weight: 500; color: var(--light);
+  display: flex; align-items: center; gap: 8px;
+}
+.card-action {
+  font-size: 12px; color: var(--muted); cursor: pointer;
+  transition: color 0.15s; background: none; border: none;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.card-action:hover { color: var(--hot2); }
+
+/* ── TREND LIST ── */
+.trend-list { padding: 8px 0; }
+.trend-item {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 20px; cursor: pointer; transition: background 0.15s;
+}
+.trend-item:hover { background: rgba(255,255,255,0.03); }
+.trend-rank {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 18px; color: var(--muted2);
+  width: 24px; text-align: center; flex-shrink: 0;
+}
+.trend-rank.top { color: var(--hot); }
+.trend-info { flex: 1; min-width: 0; }
+.trend-keyword { font-size: 13px; font-weight: 500; color: var(--light); margin-bottom: 3px; }
+.trend-meta { font-size: 11px; color: var(--muted); display: flex; gap: 10px; }
+.trend-score { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.score-bar {
+  width: 60px; height: 4px;
+  background: var(--dark4); border-radius: 2px; overflow: hidden;
+}
+.score-fill { height: 100%; background: var(--hot); border-radius: 2px; }
+.score-num { font-size: 11px; color: var(--muted); width: 28px; text-align: right; }
+.trend-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.btn-sm {
+  padding: 5px 12px; font-size: 11px; font-weight: 500;
+  border-radius: 4px; cursor: pointer;
+  font-family: 'Noto Sans KR', sans-serif;
+  transition: all 0.15s; white-space: nowrap;
+}
+.btn-sm-hot {
+  background: rgba(255,59,31,0.15);
+  border: 1px solid rgba(255,59,31,0.3); color: var(--hot2);
+}
+.btn-sm-hot:hover { background: var(--hot); color: #fff; }
+
+/* 로딩 스켈레톤 */
+.skeleton {
+  background: linear-gradient(90deg, var(--dark3) 25%, var(--dark4) 50%, var(--dark3) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.skeleton-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 20px;
+}
+
+/* ── ACTIVITY ── */
+.activity-list { padding: 8px 0; }
+.activity-item { display: flex; gap: 12px; padding: 10px 20px; }
+.activity-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; margin-top: 5px;
+}
+.activity-dot.hot { background: var(--hot); }
+.activity-dot.green { background: var(--green); }
+.activity-dot.amber { background: var(--amber); }
+.activity-dot.muted { background: var(--muted2); }
+.activity-text {
+  font-size: 12px; line-height: 1.6;
+  color: rgba(245,242,236,0.6); flex: 1;
+}
+.activity-text strong { color: var(--light); font-weight: 500; }
+.activity-time { font-size: 11px; color: var(--muted); flex-shrink: 0; margin-top: 2px; }
+
+/* ── MINI CHART ── */
+.mini-chart { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+.chart-bars { display: flex; align-items: flex-end; gap: 4px; height: 80px; }
+.chart-bar {
+  flex: 1; background: rgba(255,59,31,0.15);
+  border-radius: 3px 3px 0 0; transition: background 0.2s; cursor: pointer;
+}
+.chart-bar:hover { background: rgba(255,59,31,0.4); }
+.chart-bar.active { background: var(--hot); }
+.chart-labels { display: flex; gap: 4px; }
+.chart-label { flex: 1; text-align: center; font-size: 10px; color: var(--muted); }
+
+/* ── BOTTOM GRID ── */
+.bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.keyword-tags { padding: 16px 20px; display: flex; flex-wrap: wrap; gap: 8px; }
+.keyword-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--dark3); border: 1px solid var(--border);
+  color: var(--light); font-size: 12px; padding: 5px 12px;
+  border-radius: 20px; cursor: pointer; transition: all 0.15s;
+}
+.keyword-tag:hover { border-color: rgba(255,59,31,0.4); color: var(--hot2); }
+.keyword-tag.hot-tag {
+  background: rgba(255,59,31,0.1);
+  border-color: rgba(255,59,31,0.3); color: var(--hot2);
+}
+.tag-score {
+  font-size: 10px; background: rgba(255,59,31,0.2);
+  color: var(--hot); padding: 1px 5px; border-radius: 10px;
+}
+.product-table { width: 100%; border-collapse: collapse; }
+.product-table th {
+  font-size: 11px; font-weight: 500; letter-spacing: 0.5px;
+  color: var(--muted); padding: 10px 20px; text-align: left;
+  border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+.product-table td {
+  padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.product-table tr:last-child td { border-bottom: none; }
+.product-table tr:hover td { background: rgba(255,255,255,0.02); }
+.product-name-cell { display: flex; align-items: center; gap: 10px; }
+.product-thumb {
+  width: 36px; height: 36px; background: var(--dark3);
+  border-radius: 6px; display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+}
+.product-name { font-weight: 500; color: var(--light); margin-bottom: 2px; font-size: 13px; }
+.product-source { font-size: 11px; color: var(--muted); }
+.status-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500;
+}
+.status-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; }
+.status-live { background: rgba(34,197,94,0.12); color: var(--green); }
+.status-live::before { background: var(--green); }
+.status-draft { background: rgba(245,158,11,0.12); color: var(--amber); }
+.status-draft::before { background: var(--amber); }
+.status-new { background: rgba(255,59,31,0.12); color: var(--hot2); }
+.status-new::before { background: var(--hot); }
+.margin-cell { display: flex; align-items: center; gap: 6px; }
+.margin-bar { width: 48px; height: 3px; background: var(--dark4); border-radius: 2px; overflow: hidden; }
+.margin-fill { height: 100%; border-radius: 2px; }
+.margin-good { background: var(--green); }
+.margin-ok { background: var(--amber); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(4px);
+  z-index: 200; display: none;
+  align-items: center; justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--dark2);
+  border: 1px solid var(--border);
+  border-radius: 12px; width: 600px;
+  max-height: 85vh; overflow-y: auto;
+}
+.modal-header {
+  padding: 20px 24px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; background: var(--dark2); z-index: 1;
+}
+.modal-title { font-size: 15px; font-weight: 500; }
+.modal-close {
+  width: 28px; height: 28px; background: var(--dark3);
+  border: none; border-radius: 6px; color: var(--muted);
+  font-size: 16px; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+}
+.modal-close:hover { background: var(--dark4); color: var(--light); }
+.modal-body { padding: 24px; }
+.modal-keyword {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 40px; color: var(--hot);
+  letter-spacing: 1px; margin-bottom: 4px;
+}
+.modal-meta { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+.modal-section-title {
+  font-size: 11px; font-weight: 500; letter-spacing: 1.5px;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+}
+.modal-products { display: flex; flex-direction: column; gap: 8px; margin-bottom: 24px; }
+.modal-product {
+  background: var(--dark3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; cursor: pointer; transition: border-color 0.15s;
+}
+.modal-product:hover { border-color: rgba(255,59,31,0.4); }
+.modal-product.selected { border-color: var(--hot); background: rgba(255,59,31,0.08); }
+.modal-product-name { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.modal-product-price { font-size: 12px; color: var(--muted); }
+.modal-product-margin { font-size: 13px; color: var(--green); font-weight: 500; white-space: nowrap; }
+
+/* AI 생성 박스 */
+.ai-box {
+  background: rgba(255,59,31,0.06);
+  border: 1px solid rgba(255,59,31,0.2);
+  border-radius: 8px; padding: 16px; margin-bottom: 20px;
+}
+.ai-box-title {
+  font-size: 11px; font-weight: 500; color: var(--hot2);
+  letter-spacing: 1px; text-transform: uppercase;
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.ai-generated-name { font-size: 14px; font-weight: 500; line-height: 1.5; margin-bottom: 8px; }
+.ai-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.ai-tag {
+  background: rgba(255,59,31,0.1); color: var(--hot2);
+  font-size: 11px; padding: 3px 8px; border-radius: 4px;
+}
+.ai-desc { font-size: 12px; color: rgba(245,242,236,0.6); line-height: 1.6; }
+.ai-loading {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted); font-size: 13px; padding: 8px 0;
+}
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--dark4);
+  border-top-color: var(--hot);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.modal-footer {
+  padding: 16px 24px; border-top: 1px solid var(--border);
+  display: flex; gap: 8px; justify-content: flex-end;
+  position: sticky; bottom: 0; background: var(--dark2);
+}
+.btn-modal-primary {
+  background: var(--hot); border: none; color: #fff;
+  padding: 10px 24px; font-size: 13px; font-weight: 500;
+  font-family: 'Noto Sans KR', sans-serif;
+  border-radius: 6px; cursor: pointer; transition: background 0.15s;
+}
+.btn-modal-primary:hover { background: var(--hot2); }
+.btn-modal-primary:disabled { background: var(--muted2); cursor: not-allowed; }
+.btn-modal-ghost {
+  background: var(--dark3); border: 1px solid var(--border);
+  color: var(--muted); padding: 10px 16px; font-size: 13px;
+  font-family: 'Noto Sans KR', sans-serif;
+  border-radius: 6px; cursor: pointer; transition: all 0.15s;
+}
+.btn-modal-ghost:hover { color: var(--light); }
+
+/* 토스트 */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--dark3); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px 20px;
+  font-size: 13px; color: var(--light);
+  display: flex; align-items: center; gap: 10px;
+  transform: translateY(80px); opacity: 0;
+  transition: all 0.3s; z-index: 300;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: rgba(34,197,94,0.4); }
+.toast.error { border-color: rgba(239,68,68,0.4); }
+</style>
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar">
+  <div class="sidebar-logo"><span>핫픽</span>셀러</div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">메인</div>
+    <div class="nav-item active"><span class="nav-icon">📊</span> 대시보드</div>
+    <div class="nav-item" onclick="runPipeline()"><span class="nav-icon">📈</span> 트렌드 탐색 <span class="nav-badge" id="trend-badge">0</span></div>
+    <div class="nav-item"><span class="nav-icon">🔍</span> 상품 매칭</div>
+    <div class="nav-item"><span class="nav-icon">✍️</span> AI 생성</div>
+    <div class="nav-section-label">관리</div>
+    <div class="nav-item"><span class="nav-icon">🚀</span> 쿠팡 업로드</div>
+    <div class="nav-item"><span class="nav-icon">📦</span> 등록 상품</div>
+    <div class="nav-item"><span class="nav-icon">💰</span> 마진 계산기</div>
+    <div class="nav-section-label">설정</div>
+    <div class="nav-item"><span class="nav-icon">⚙️</span> 설정</div>
+  </nav>
+  <div class="sidebar-bottom">
+    <div class="user-card">
+      <div class="user-avatar">김</div>
+      <div>
+        <div class="user-name">김셀러님</div>
+        <div class="user-plan">프로 플랜 ✦</div>
+      </div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <div class="topbar-title">대시보드</div>
+      <div class="topbar-sub">오늘의 트렌드와 판매 현황</div>
+    </div>
+    <div class="topbar-right">
+      <div class="api-status">
+        <div class="api-dot" id="api-dot"></div>
+        <span id="api-status-text">연결 확인중...</span>
+      </div>
+      <button class="topbar-btn" onclick="loadTrends()">🔄 트렌드 새로고침</button>
+      <button class="topbar-btn" onclick="openModal()">+ 새 상품 찾기</button>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">📦 등록 상품</div>
+        <div class="stat-value" id="stat-products">—</div>
+        <div class="stat-change neutral" id="stat-products-sub">불러오는 중...</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">🔥 오늘 트렌드 키워드</div>
+        <div class="stat-value" id="stat-trends">—</div>
+        <div class="stat-change up" id="stat-trends-sub">불러오는 중...</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">💰 평균 마진율</div>
+        <div class="stat-value">28<span style="font-size:20px">%</span></div>
+        <div class="stat-change up">↑ 2.1% 지난 달 대비</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">✍️ AI 생성 (이번 달)</div>
+        <div class="stat-value" id="stat-ai">0</div>
+        <div class="stat-change neutral" id="stat-ai-sub">월 30개 한도</div>
+      </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="main-grid">
+
+      <!-- 트렌드 카드 -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔥 실시간 트렌드 키워드</div>
+          <button class="card-action" onclick="loadTrends()">새로고침 ↺</button>
+        </div>
+        <div class="trend-list" id="trend-list">
+          <!-- 스켈레톤 로딩 -->
+          <div class="skeleton-row"><div class="skeleton" style="width:20px;height:20px"></div><div style="flex:1"><div class="skeleton" style="width:40%;height:13px;margin-bottom:6px"></div><div class="skeleton" style="width:60%;height:11px"></div></div></div>
+          <div class="skeleton-row"><div class="skeleton" style="width:20px;height:20px"></div><div style="flex:1"><div class="skeleton" style="width:35%;height:13px;margin-bottom:6px"></div><div class="skeleton" style="width:55%;height:11px"></div></div></div>
+          <div class="skeleton-row"><div class="skeleton" style="width:20px;height:20px"></div><div style="flex:1"><div class="skeleton" style="width:45%;height:13px;margin-bottom:6px"></div><div class="skeleton" style="width:50%;height:11px"></div></div></div>
+          <div class="skeleton-row"><div class="skeleton" style="width:20px;height:20px"></div><div style="flex:1"><div class="skeleton" style="width:30%;height:13px;margin-bottom:6px"></div><div class="skeleton" style="width:65%;height:11px"></div></div></div>
+          <div class="skeleton-row"><div class="skeleton" style="width:20px;height:20px"></div><div style="flex:1"><div class="skeleton" style="width:50%;height:13px;margin-bottom:6px"></div><div class="skeleton" style="width:45%;height:11px"></div></div></div>
+        </div>
+      </div>
+
+      <!-- 사이드 -->
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div class="card">
+          <div class="card-header"><div class="card-title">📅 주간 수집량</div></div>
+          <div class="mini-chart">
+            <div class="chart-bars">
+              <div class="chart-bar" style="height:45%"></div>
+              <div class="chart-bar" style="height:60%"></div>
+              <div class="chart-bar" style="height:55%"></div>
+              <div class="chart-bar" style="height:80%"></div>
+              <div class="chart-bar" style="height:70%"></div>
+              <div class="chart-bar" style="height:90%"></div>
+              <div class="chart-bar active" style="height:100%"></div>
+            </div>
+            <div class="chart-labels">
+              <div class="chart-label">월</div><div class="chart-label">화</div>
+              <div class="chart-label">수</div><div class="chart-label">목</div>
+              <div class="chart-label">금</div><div class="chart-label">토</div>
+              <div class="chart-label" style="color:var(--hot)">일</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="flex:1">
+          <div class="card-header"><div class="card-title">⚡ 최근 활동</div></div>
+          <div class="activity-list" id="activity-list">
+            <div class="activity-item">
+              <div class="activity-dot amber"></div>
+              <div class="activity-text">서버 연결 확인 중...</div>
+              <div class="activity-time">지금</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM GRID -->
+    <div class="bottom-grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📦 최근 등록 상품</div>
+        </div>
+        <table class="product-table">
+          <thead><tr><th>상품명</th><th>마진</th><th>상태</th></tr></thead>
+          <tbody>
+            <tr><td><div class="product-name-cell"><div class="product-thumb">🧴</div><div><div class="product-name">SPF50 선크림 100ml</div><div class="product-source">도매꾹</div></div></div></td><td><div class="margin-cell"><div class="margin-bar"><div class="margin-fill margin-good" style="width:34%"></div></div><span style="font-size:12px;color:var(--green)">34%</span></div></td><td><span class="status-badge status-new">신규</span></td></tr>
+            <tr><td><div class="product-name-cell"><div class="product-thumb">⛺</div><div><div class="product-name">경량 캠핑 폴딩체어</div><div class="product-source">젠트레이드</div></div></div></td><td><div class="margin-cell"><div class="margin-bar"><div class="margin-fill margin-good" style="width:28%"></div></div><span style="font-size:12px;color:var(--green)">28%</span></div></td><td><span class="status-badge status-live">판매중</span></td></tr>
+            <tr><td><div class="product-name-cell"><div class="product-thumb">🧹</div><div><div class="product-name">에어컨 청소 키트</div><div class="product-source">오너클랜</div></div></div></td><td><div class="margin-cell"><div class="margin-bar"><div class="margin-fill margin-ok" style="width:21%"></div></div><span style="font-size:12px;color:var(--amber)">21%</span></div></td><td><span class="status-badge status-draft">초안</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">🏷️ 인기 키워드 태그</div></div>
+        <div class="keyword-tags" id="keyword-tags">
+          <div class="skeleton" style="width:80px;height:28px;border-radius:20px"></div>
+          <div class="skeleton" style="width:90px;height:28px;border-radius:20px"></div>
+          <div class="skeleton" style="width:70px;height:28px;border-radius:20px"></div>
+          <div class="skeleton" style="width:85px;height:28px;border-radius:20px"></div>
+          <div class="skeleton" style="width:75px;height:28px;border-radius:20px"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══ MODAL ══ -->
+<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">상품 탐색 & AI 생성</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="modal-keyword" id="modal-keyword">—</div>
+      <div class="modal-meta" id="modal-meta">키워드를 선택해주세요</div>
+
+      <div class="modal-section-title">도매 상품 후보</div>
+      <div class="modal-products" id="modal-products">
+        <div class="ai-loading"><div class="spinner"></div> 도매 상품 탐색중...</div>
+      </div>
+
+      <div class="modal-section-title">AI 생성 결과</div>
+      <div class="ai-box" id="ai-result-box">
+        <div class="ai-loading"><div class="spinner"></div> 상품을 선택하면 AI가 자동 생성합니다</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-modal-ghost" onclick="closeModal()">닫기</button>
+      <button class="btn-modal-primary" id="btn-save" onclick="saveProduct()" disabled>쿠팡 업로드 초안 저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 토스트 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ══ 설정 ══════════════════════════════════════
+// ⚠️ wrangler deploy 후 실제 Worker URL로 교체하세요
+// 예) https://hotpickseller-api.여러분계정.workers.dev
+const API_BASE = "https://hotpickseller-api.여러분계정.workers.dev";
+
+let aiCount = 0;
+let selectedProduct = null;
+let currentTrends = [];
+let currentKeyword = "";
+let currentUser = null;
+
+// ══ Firebase 헬퍼 ══════════════════════════════
+function getFirebase() { return window.__firebase || null; }
+
+// ══ 초기화 ════════════════════════════════════
+window.addEventListener("DOMContentLoaded", async () => {
+  // Firebase Auth 상태 감지
+  const fb = getFirebase();
+  if (fb) {
+    fb.onAuthStateChanged(fb.auth, (user) => {
+      currentUser = user;
+      if (user) {
+        const uname = user.email?.split("@")[0] || "사용자";
+        document.querySelector(".user-name").textContent = uname;
+        document.querySelector(".user-plan").textContent = "PRO 플랜";
+        loadSavedFromFirestore();
+      }
+    });
+  }
+  await checkApiStatus();
+  await loadTrends();
+});
+
+// ══ API 상태 확인 ════════════════════════════
+async function checkApiStatus() {
+  try {
+    const res = await fetch(`${API_BASE}/`, { signal: AbortSignal.timeout(5000) });
+    const data = await res.json();
+    if (data.status === "ok") {
+      document.getElementById("api-dot").className = "api-dot online";
+      document.getElementById("api-status-text").textContent = "서버 연결됨";
+      addActivity("green", "서버 연결 성공", "방금");
+    }
+  } catch {
+    document.getElementById("api-dot").className = "api-dot offline";
+    document.getElementById("api-status-text").textContent = "서버 오프라인";
+    addActivity("hot", "서버 연결 실패 — API 주소를 확인해주세요", "방금");
+  }
+}
+
+// ══ 트렌드 불러오기 ══════════════════════════
+async function loadTrends() {
+  document.getElementById("trend-list").innerHTML = `
+    <div style="padding:20px;text-align:center">
+      <div class="ai-loading" style="justify-content:center"><div class="spinner"></div> 구글 트렌드 불러오는 중...</div>
+    </div>`;
+
+  try {
+    const res = await fetch(`${API_BASE}/trends?limit=8`);
+    const data = await res.json();
+    currentTrends = data.trends;
+
+    // 통계 업데이트
+    document.getElementById("stat-trends").textContent = data.count;
+    document.getElementById("stat-trends-sub").textContent = `↑ ${data.count}개 키워드 수집됨`;
+    document.getElementById("trend-badge").textContent = data.count;
+    document.getElementById("stat-products").textContent = "47";
+    document.getElementById("stat-products-sub").textContent = "↑ 5 이번 주 추가";
+
+    renderTrends(data.trends);
+    renderKeywordTags(data.trends);
+    addActivity("hot", `트렌드 수집 완료 — <strong>${data.count}개</strong> 키워드 발견`, "방금");
+    showToast("✅ 트렌드 키워드 업데이트 완료!", "success");
+  } catch (e) {
+    document.getElementById("trend-list").innerHTML = `
+      <div style="padding:24px;text-align:center;color:var(--muted)">
+        <div style="font-size:24px;margin-bottom:8px">⚠️</div>
+        <div>트렌드를 불러올 수 없어요</div>
+        <div style="font-size:11px;margin-top:4px">서버 연결을 확인해주세요</div>
+      </div>`;
+    showToast("❌ 트렌드 로드 실패", "error");
+  }
+}
+
+// ══ 트렌드 렌더링 ════════════════════════════
+function renderTrends(trends) {
+  const html = trends.map((t, i) => `
+    <div class="trend-item" onclick="openModal('${t.keyword}', ${JSON.stringify(t).replace(/'/g, "&#39;")})">
+      <div class="trend-rank ${i < 3 ? 'top' : ''}">${t.rank}</div>
+      <div class="trend-info">
+        <div class="trend-keyword">${t.keyword}</div>
+        <div class="trend-meta">
+          <span>${t.category}</span>
+          <span>↑ ${t.change_rate}% 상승</span>
+        </div>
+      </div>
+      <div class="trend-score">
+        <div class="score-bar"><div class="score-fill" style="width:${t.score}%"></div></div>
+        <div class="score-num">${t.score}</div>
+      </div>
+      <div class="trend-actions">
+        <button class="btn-sm btn-sm-hot" onclick="event.stopPropagation();openModal('${t.keyword}')">상품 찾기</button>
+      </div>
+    </div>`).join("");
+  document.getElementById("trend-list").innerHTML = html;
+}
+
+// ══ 키워드 태그 렌더링 ══════════════════════
+function renderKeywordTags(trends) {
+  const html = trends.map(t => `
+    <div class="keyword-tag ${t.score > 60 ? 'hot-tag' : ''}" onclick="openModal('${t.keyword}')">
+      ${t.keyword} ${t.score > 60 ? `<span class="tag-score">${t.score}</span>` : ''}
+    </div>`).join("");
+  document.getElementById("keyword-tags").innerHTML = html;
+}
+
+// ══ 모달 열기 ════════════════════════════════
+async function openModal(keyword, trendData) {
+  if (!keyword) keyword = currentTrends[0]?.keyword || "인기상품";
+  currentKeyword = keyword;
+  selectedProduct = null;
+  document.getElementById("btn-save").disabled = true;
+
+  // 모달 초기화
+  document.getElementById("modal-keyword").textContent = keyword;
+  document.getElementById("modal-meta").textContent = trendData
+    ? `트렌드 점수 ${trendData.score} · ${trendData.category} · ↑ ${trendData.change_rate}% 상승`
+    : "트렌드 키워드 기반 상품 탐색";
+  document.getElementById("modal-products").innerHTML = `<div class="ai-loading"><div class="spinner"></div> 도매 상품 탐색중...</div>`;
+  document.getElementById("ai-result-box").innerHTML = `<div class="ai-loading" style="color:var(--muted)"><div class="spinner" style="border-top-color:var(--muted)"></div> 상품을 선택하면 AI가 자동 생성합니다</div>`;
+  document.getElementById("modal").classList.add("open");
+
+  // 상품 탐색
+  try {
+    const res = await fetch(`${API_BASE}/products/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ keyword, sources: ["도매꾹", "오너클랜", "젠트레이드"], max_results: 4 })
+    });
+    const data = await res.json();
+    renderModalProducts(data.products);
+  } catch {
+    document.getElementById("modal-products").innerHTML = `<div style="color:var(--muted);font-size:13px;padding:8px 0">상품 탐색 실패 — 서버 연결을 확인해주세요</div>`;
+  }
+}
+
+// ══ 모달 상품 렌더링 ════════════════════════
+function renderModalProducts(products) {
+  if (!products || products.length === 0) {
+    document.getElementById("modal-products").innerHTML = `<div style="color:var(--muted);font-size:13px">탐색 결과가 없어요</div>`;
+    return;
+  }
+  const html = products.map((p, i) => `
+    <div class="modal-product" id="mp-${i}" onclick="selectProduct(${i}, ${JSON.stringify(p).replace(/"/g, '&quot;')})">
+      <div>
+        <div class="modal-product-name">${p.name}</div>
+        <div class="modal-product-price">${p.source} · 매입가 ${p.wholesale_price.toLocaleString()}원 · 최소 ${p.min_order}개</div>
+      </div>
+      <div class="modal-product-margin">마진 ${p.margin_rate}%</div>
+    </div>`).join("");
+  document.getElementById("modal-products").innerHTML = html;
+}
+
+// ══ 상품 선택 → AI 생성 ═══════════════════
+async function selectProduct(idx, product) {
+  // 선택 표시
+  document.querySelectorAll(".modal-product").forEach(el => el.classList.remove("selected"));
+  document.getElementById(`mp-${idx}`)?.classList.add("selected");
+  selectedProduct = product;
+
+  // AI 생성 시작
+  document.getElementById("ai-result-box").innerHTML = `<div class="ai-loading"><div class="spinner"></div> Claude AI가 상품명 생성중...</div>`;
+  document.getElementById("btn-save").disabled = true;
+
+  try {
+    const res = await fetch(`${API_BASE}/ai/generate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        keyword: currentKeyword,
+        product_name: product.name,
+        product_price: product.wholesale_price,
+        source: product.source
+      })
+    });
+    const data = await res.json();
+    const r = data.result;
+
+    document.getElementById("ai-result-box").innerHTML = `
+      <div class="ai-box-title">✦ AI 생성 완료</div>
+      <div class="ai-generated-name">${r.optimized_title}</div>
+      <div class="ai-tags">${(r.search_tags || []).map(t => `<span class="ai-tag">${t}</span>`).join("")}</div>
+      <div class="ai-desc">${r.description || ""}</div>`;
+
+    aiCount++;
+    document.getElementById("stat-ai").textContent = aiCount;
+    document.getElementById("stat-ai-sub").textContent = `월 30개 중 ${30 - aiCount}개 남음`;
+    document.getElementById("btn-save").disabled = false;
+    addActivity("hot", `<strong>${currentKeyword}</strong> AI 상세페이지 생성 완료`, "방금");
+  } catch {
+    document.getElementById("ai-result-box").innerHTML = `<div style="color:var(--muted);font-size:13px">AI 생성 실패 — API 키를 확인해주세요</div>`;
+  }
+}
+
+// ══ 저장 (임시) ══════════════════════════════
+async function saveProduct() {
+  if (!selectedProduct) return;
+
+  const fb = getFirebase();
+  if (fb && currentUser) {
+    try {
+      // Firestore에 저장
+      const { collection, addDoc, db } = fb;
+      await addDoc(collection(db, "saved_products"), {
+        uid: currentUser.uid,
+        keyword: currentKeyword,
+        product: selectedProduct,
+        savedAt: Date.now(),
+      });
+      addActivity("green", `<strong>${currentKeyword}</strong> Firebase 저장 완료`, "방금");
+    } catch (e) {
+      console.warn("Firestore 저장 실패:", e);
+    }
+  } else {
+    // 비로그인: 로컬 임시 저장
+    addActivity("green", `<strong>${currentKeyword}</strong> 상품 초안 저장 완료 (임시)`, "방금");
+  }
+  closeModal();
+  showToast("✅ 쿠팡 업로드 초안이 저장됐어요!", "success");
+}
+
+// Firestore에서 저장 상품 불러오기
+async function loadSavedFromFirestore() {
+  const fb = getFirebase();
+  if (!fb || !currentUser) return;
+  try {
+    const { collection, getDocs, query, orderBy, limit, db } = fb;
+    const q = query(collection(db, "saved_products"), orderBy("savedAt", "desc"), limit(20));
+    const snap = await getDocs(q);
+    const count = snap.size;
+    if (count > 0) {
+      document.getElementById("stat-products").textContent = count;
+      document.getElementById("stat-products-sub").textContent = `↑ ${count}개 저장됨`;
+    }
+  } catch (e) {
+    console.warn("Firestore 불러오기 실패:", e);
+  }
+}
+
+// 로그아웃
+async function logout() {
+  const fb = getFirebase();
+  if (fb) {
+    await fb.signOut(fb.auth);
+    location.href = "index.html";
+  }
+}
+
+function closeModal() {
+  document.getElementById("modal").classList.remove("open");
+}
+
+// ══ 전체 파이프라인 실행 ══════════════════
+async function runPipeline() {
+  showToast("🔄 파이프라인 실행 중...");
+  try {
+    await fetch(`${API_BASE}/pipeline/run`);
+    showToast("✅ 파이프라인 백그라운드 실행 시작!", "success");
+    addActivity("amber", "전체 파이프라인 백그라운드 실행 시작", "방금");
+    setTimeout(loadTrends, 3000);
+  } catch {
+    showToast("❌ 파이프라인 실행 실패", "error");
+  }
+}
+
+// ══ 활동 피드 추가 ══════════════════════════
+function addActivity(color, text, time) {
+  const list = document.getElementById("activity-list");
+  const item = document.createElement("div");
+  item.className = "activity-item";
+  item.innerHTML = `<div class="activity-dot ${color}"></div><div class="activity-text">${text}</div><div class="activity-time">${time}</div>`;
+  list.insertBefore(item, list.firstChild);
+  while (list.children.length > 6) list.removeChild(list.lastChild);
+}
+
+// ══ 토스트 메시지 ════════════════════════════
+function showToast(msg, type = "") {
+  const el = document.getElementById("toast");
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  setTimeout(() => el.classList.remove("show"), 3000);
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+</script>
+</body>
+</html>

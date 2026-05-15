@@ -1,0 +1,48 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      ".firebaserc",
+      "worker/**",
+      "node_modules/**",
+      "README.md",
+      "_env",
+      "*.sh",
+      "*.py",
+      "*.toml",
+      "*.txt",
+      "__init__.py"
+    ],
+    "rewrites": [
+      {
+        "source": "/dashboard",
+        "destination": "/hotpickseller_dashboard_v2.html"
+      },
+      {
+        "source": "/payment",
+        "destination": "/hotpickseller_payment.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "**/*.html",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "source": "**/*.@(js|css)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "public, max-age=604800"
+          }
+        ]
+      }
+    ]
+  }
+}
