@@ -494,23 +494,23 @@ body {
   <div class="sidebar-logo"><span>핫픽</span>셀러</div>
   <nav class="sidebar-nav">
     <div class="nav-section-label">메인</div>
-    <div class="nav-item active"><span class="nav-icon">📊</span> 대시보드</div>
-    <div class="nav-item" onclick="runPipeline()"><span class="nav-icon">📈</span> 트렌드 탐색 <span class="nav-badge" id="trend-badge">0</span></div>
-    <div class="nav-item"><span class="nav-icon">🔍</span> 상품 매칭</div>
-    <div class="nav-item"><span class="nav-icon">✍️</span> AI 생성</div>
+    <div class="nav-item active" onclick="setNav(this, null)"><span class="nav-icon">📊</span> 대시보드</div>
+    <div class="nav-item" onclick="setNav(this, null); loadTrends()"><span class="nav-icon">📈</span> 트렌드 탐색 <span class="nav-badge" id="trend-badge">0</span></div>
+    <div class="nav-item" onclick="setNav(this, null); openModal()"><span class="nav-icon">🔍</span> 상품 매칭</div>
+    <div class="nav-item" onclick="setNav(this, null); openModal()"><span class="nav-icon">✍️</span> AI 생성</div>
     <div class="nav-section-label">관리</div>
-    <div class="nav-item"><span class="nav-icon">🚀</span> 쿠팡 업로드</div>
-    <div class="nav-item"><span class="nav-icon">📦</span> 등록 상품</div>
-    <div class="nav-item"><span class="nav-icon">💰</span> 마진 계산기</div>
+    <div class="nav-item" onclick="setNav(this, null); showToast('🚀 쿠팡 업로드 — 준비 중입니다', '')"><span class="nav-icon">🚀</span> 쿠팡 업로드</div>
+    <div class="nav-item" onclick="setNav(this, null); showToast('📦 등록 상품 — 준비 중입니다', '')"><span class="nav-icon">📦</span> 등록 상품</div>
+    <div class="nav-item" onclick="setNav(this, null); openMarginCalc()"><span class="nav-icon">💰</span> 마진 계산기</div>
     <div class="nav-section-label">설정</div>
-    <div class="nav-item"><span class="nav-icon">⚙️</span> 설정</div>
+    <div class="nav-item" onclick="setNav(this, null); openSettings()"><span class="nav-icon">⚙️</span> 설정</div>
   </nav>
   <div class="sidebar-bottom">
-    <div class="user-card">
-      <div class="user-avatar">김</div>
+    <div class="user-card" onclick="openSettings()" title="설정 / 로그아웃">
+      <div class="user-avatar" id="user-avatar">?</div>
       <div>
-        <div class="user-name">김셀러님</div>
-        <div class="user-plan">프로 플랜 ✦</div>
+        <div class="user-name" id="user-name">불러오는 중...</div>
+        <div class="user-plan" id="user-plan">PRO 플랜 ✦</div>
       </div>
     </div>
   </div>
@@ -674,6 +674,95 @@ body {
   </div>
 </div>
 
+<!-- ══ 설정 모달 ══ -->
+<div class="modal-overlay" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal" style="max-width:460px">
+    <div class="modal-header">
+      <div class="modal-title">⚙️ 설정</div>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--dark3);border-radius:10px;margin-bottom:24px">
+        <div class="user-avatar" id="settings-avatar" style="width:48px;height:48px;font-size:20px">?</div>
+        <div>
+          <div style="font-size:15px;font-weight:500" id="settings-name">—</div>
+          <div style="font-size:13px;color:var(--muted);margin-top:2px" id="settings-email">—</div>
+          <div style="font-size:11px;color:var(--hot2);margin-top:4px">PRO 플랜 ✦</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:24px">
+        <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">계정</div>
+        <button onclick="location.href='hotpickseller_payment.html'" style="width:100%;padding:12px 16px;background:var(--dark3);border:1px solid var(--border);border-radius:8px;color:var(--light);font-family:\'Noto Sans KR\',sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:background 0.15s" onmouseover="this.style.background='var(--dark4)'" onmouseout="this.style.background='var(--dark3)'">
+          💳 플랜 업그레이드
+        </button>
+        <button onclick="doLogout()" style="width:100%;padding:12px 16px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;color:#FCA5A5;font-family:\'Noto Sans KR\',sans-serif;font-size:13px;cursor:pointer;text-align:left;transition:all 0.15s" onmouseover="this.style.background='rgba(239,68,68,0.15)'" onmouseout="this.style.background='rgba(239,68,68,0.08)'">
+          🚪 로그아웃
+        </button>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:center">핫픽셀러 v2.0 · 문의: support@hotpickseller.com</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 마진 계산기 모달 ══ -->
+<div class="modal-overlay" id="margin-modal" onclick="if(event.target===this)closeMarginCalc()">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <div class="modal-title">💰 마진 계산기</div>
+      <button class="modal-close" onclick="closeMarginCalc()">✕</button>
+    </div>
+    <div class="modal-body" style="padding:24px">
+      <div style="display:grid;gap:14px;margin-bottom:20px">
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">도매 매입가 (원)</div>
+          <input id="mc-cost" type="number" placeholder="예: 15000" oninput="calcMargin()"
+            style="width:100%;background:var(--dark3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--light);font-size:14px;outline:none;font-family:\'Noto Sans KR\',sans-serif"
+            onfocus="this.style.borderColor='var(--hot)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div>
+          <div style="font-size:11px;color:var(--muted);margin-bottom:6px">쿠팡 판매가 (원)</div>
+          <input id="mc-price" type="number" placeholder="예: 25000" oninput="calcMargin()"
+            style="width:100%;background:var(--dark3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--light);font-size:14px;outline:none;font-family:\'Noto Sans KR\',sans-serif"
+            onfocus="this.style.borderColor='var(--hot)'" onblur="this.style.borderColor='var(--border)'">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">쿠팡 수수료 (%)</div>
+            <input id="mc-fee" type="number" value="11" placeholder="11" oninput="calcMargin()"
+              style="width:100%;background:var(--dark3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--light);font-size:14px;outline:none;font-family:\'Noto Sans KR\',sans-serif"
+              onfocus="this.style.borderColor='var(--hot)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+          <div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:6px">배송비 (원)</div>
+            <input id="mc-ship" type="number" value="3500" placeholder="3500" oninput="calcMargin()"
+              style="width:100%;background:var(--dark3);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--light);font-size:14px;outline:none;font-family:\'Noto Sans KR\',sans-serif"
+              onfocus="this.style.borderColor='var(--hot)'" onblur="this.style.borderColor='var(--border)'">
+          </div>
+        </div>
+      </div>
+      <div id="mc-result" style="background:var(--dark3);border-radius:10px;padding:20px;display:none">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">마진율</div>
+            <div id="mc-rate" style="font-family:\'Bebas Neue\',sans-serif;font-size:40px;color:var(--green)">0%</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:4px">순이익</div>
+            <div id="mc-profit" style="font-family:\'Bebas Neue\',sans-serif;font-size:40px;color:var(--green)">0원</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:rgba(245,242,236,0.6)">
+          <div style="display:flex;justify-content:space-between"><span>판매가</span><span id="mc-d-price" style="color:var(--light)">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>매입가</span><span id="mc-d-cost">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>쿠팡 수수료</span><span id="mc-d-fee">—</span></div>
+          <div style="display:flex;justify-content:space-between"><span>배송비</span><span id="mc-d-ship">—</span></div>
+        </div>
+      </div>
+      <div id="mc-empty" style="text-align:center;color:var(--muted);padding:20px;font-size:13px">매입가와 판매가를 입력하면 자동 계산됩니다</div>
+    </div>
+  </div>
+</div>
+
 <!-- 토스트 -->
 <div class="toast" id="toast"></div>
 
@@ -700,9 +789,14 @@ window.addEventListener("DOMContentLoaded", async () => {
     fb.onAuthStateChanged(fb.auth, (user) => {
       currentUser = user;
       if (user) {
-        const uname = user.email?.split("@")[0] || "사용자";
-        document.querySelector(".user-name").textContent = uname;
-        document.querySelector(".user-plan").textContent = "PRO 플랜";
+        const uname = user.displayName || user.email?.split("@")[0] || "사용자";
+        const initial = uname.charAt(0).toUpperCase();
+        document.getElementById("user-name").textContent = uname;
+        document.getElementById("user-plan").textContent = "PRO 플랜 ✦";
+        document.getElementById("user-avatar").textContent = initial;
+        document.getElementById("settings-avatar").textContent = initial;
+        document.getElementById("settings-name").textContent = uname;
+        document.getElementById("settings-email").textContent = user.email || "";
         loadSavedFromFirestore();
       }
     });
@@ -927,13 +1021,63 @@ async function loadSavedFromFirestore() {
   }
 }
 
-// 로그아웃
-async function logout() {
+// ══ 로그아웃 ═════════════════════════════════
+async function doLogout() {
   const fb = getFirebase();
   if (fb) {
     await fb.signOut(fb.auth);
-    location.href = "index.html";
+    location.href = "login.html";
   }
+}
+
+// ══ 설정 모달 ════════════════════════════════
+function openSettings() {
+  document.getElementById("settings-modal").classList.add("open");
+}
+function closeSettings() {
+  document.getElementById("settings-modal").classList.remove("open");
+}
+
+// ══ 마진 계산기 모달 ═════════════════════════
+function openMarginCalc() {
+  document.getElementById("margin-modal").classList.add("open");
+}
+function closeMarginCalc() {
+  document.getElementById("margin-modal").classList.remove("open");
+}
+function calcMargin() {
+  const cost  = parseFloat(document.getElementById("mc-cost").value)  || 0;
+  const price = parseFloat(document.getElementById("mc-price").value) || 0;
+  const fee   = parseFloat(document.getElementById("mc-fee").value)   || 11;
+  const ship  = parseFloat(document.getElementById("mc-ship").value)  || 3500;
+
+  if (!cost || !price) {
+    document.getElementById("mc-result").style.display = "none";
+    document.getElementById("mc-empty").style.display  = "block";
+    return;
+  }
+
+  const feeAmt   = Math.round(price * (fee / 100));
+  const profit   = price - cost - feeAmt - ship;
+  const rate     = Math.round((profit / price) * 100);
+  const color    = rate >= 20 ? "var(--green)" : rate >= 10 ? "var(--amber)" : "#EF4444";
+
+  document.getElementById("mc-rate").textContent   = `${rate}%`;
+  document.getElementById("mc-profit").textContent = `${profit.toLocaleString()}원`;
+  document.getElementById("mc-rate").style.color   = color;
+  document.getElementById("mc-profit").style.color = color;
+  document.getElementById("mc-d-price").textContent = `₩${price.toLocaleString()}`;
+  document.getElementById("mc-d-cost").textContent  = `-₩${cost.toLocaleString()}`;
+  document.getElementById("mc-d-fee").textContent   = `-₩${feeAmt.toLocaleString()} (${fee}%)`;
+  document.getElementById("mc-d-ship").textContent  = `-₩${ship.toLocaleString()}`;
+  document.getElementById("mc-result").style.display = "block";
+  document.getElementById("mc-empty").style.display  = "none";
+}
+
+// ══ 사이드바 활성 메뉴 전환 ══════════════════
+function setNav(el, _) {
+  document.querySelectorAll(".nav-item").forEach(n => n.classList.remove("active"));
+  el.classList.add("active");
 }
 
 function closeModal() {
@@ -971,7 +1115,9 @@ function showToast(msg, type = "") {
   setTimeout(() => el.classList.remove("show"), 3000);
 }
 
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") { closeModal(); closeSettings(); closeMarginCalc(); }
+});
 </script>
 </body>
 </html>

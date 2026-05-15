@@ -11,7 +11,7 @@
 <!-- Firebase SDK -->
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   // ── Firebase 설정 (dashboard.html과 동일한 값 입력) ──
@@ -30,6 +30,19 @@
   const db   = getFirestore(app);
 
   window.__firebase = { auth, db, createUserWithEmailAndPassword, signInWithEmailAndPassword, doc, setDoc };
+
+  // 비로그인 사용자 → 로그인 페이지로 이동
+  onAuthStateChanged(auth, (user) => {
+    if (!user) {
+      window.location.href = "login.html";
+    } else {
+      // 로그인된 경우 구매자 정보 자동 입력
+      const nameEl  = document.getElementById("buyer-name");
+      const emailEl = document.getElementById("buyer-email");
+      if (nameEl && !nameEl.value)  nameEl.value  = user.displayName || "";
+      if (emailEl && !emailEl.value) emailEl.value = user.email || "";
+    }
+  });
 </script>
 <style>
 :root {
