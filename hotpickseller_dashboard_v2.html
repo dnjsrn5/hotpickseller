@@ -618,18 +618,30 @@ body {
 
     <!-- BOTTOM GRID -->
     <div class="bottom-grid">
-      <div class="card">
+      <div class="card" style="grid-column:1/-1">
         <div class="card-header">
-          <div class="card-title">📦 최근 등록 상품</div>
+          <div class="card-title">📦 등록 상품 현황</div>
+          <button class="card-action" onclick="loadSavedFromFirestore()">새로고침 ↺</button>
         </div>
-        <table class="product-table">
-          <thead><tr><th>상품명</th><th>마진</th><th>상태</th></tr></thead>
-          <tbody>
-            <tr><td><div class="product-name-cell"><div class="product-thumb">🧴</div><div><div class="product-name">SPF50 선크림 100ml</div><div class="product-source">도매꾹</div></div></div></td><td><div class="margin-cell"><div class="margin-bar"><div class="margin-fill margin-good" style="width:34%"></div></div><span style="font-size:12px;color:var(--green)">34%</span></div></td><td><span class="status-badge status-new">신규</span></td></tr>
-            <tr><td><div class="product-name-cell"><div class="product-thumb">⛺</div><div><div class="product-name">경량 캠핑 폴딩체어</div><div class="product-source">젠트레이드</div></div></div></td><td><div class="margin-cell"><div class="margin-bar"><div class="margin-fill margin-good" style="width:28%"></div></div><span style="font-size:12px;color:var(--green)">28%</span></div></td><td><span class="status-badge status-live">판매중</span></td></tr>
-            <tr><td><div class="product-name-cell"><div class="product-thumb">🧹</div><div><div class="product-name">에어컨 청소 키트</div><div class="product-source">오너클랜</div></div></div></td><td><div class="margin-cell"><div class="margin-bar"><div class="margin-fill margin-ok" style="width:21%"></div></div><span style="font-size:12px;color:var(--amber)">21%</span></div></td><td><span class="status-badge status-draft">초안</span></td></tr>
-          </tbody>
-        </table>
+        <div id="saved-products-wrap">
+          <table class="product-table" id="saved-products-table" style="display:none">
+            <thead>
+              <tr>
+                <th>상품명 (AI 생성)</th>
+                <th>키워드</th>
+                <th>출처</th>
+                <th>매입가</th>
+                <th>마진율</th>
+                <th>저장일</th>
+                <th>상태</th>
+              </tr>
+            </thead>
+            <tbody id="saved-products-body"></tbody>
+          </table>
+          <div id="saved-products-empty" style="padding:32px;text-align:center;color:var(--muted);font-size:13px">
+            저장된 상품이 없어요. 트렌드 키워드에서 상품을 찾아 초안을 저장해보세요.
+          </div>
+        </div>
       </div>
       <div class="card">
         <div class="card-header"><div class="card-title">🏷️ 인기 키워드 태그</div></div>
@@ -960,11 +972,23 @@ async function selectProduct(idx, product) {
     const data = await res.json();
     const r = data.result;
 
+    const sellerEmail = currentUser?.email || "seller@example.com";
+    const today = new Date().toLocaleDateString("ko-KR");
     document.getElementById("ai-result-box").innerHTML = `
       <div class="ai-box-title">✦ AI 생성 완료</div>
       <div class="ai-generated-name">${r.optimized_title}</div>
       <div class="ai-tags">${(r.search_tags || []).map(t => `<span class="ai-tag">${t}</span>`).join("")}</div>
-      <div class="ai-desc">${r.description || ""}</div>`;
+      <div class="ai-desc">${r.description || ""}</div>
+      <div style="margin-top:16px;padding:14px;background:rgba(0,0,0,0.3);border-radius:8px;border:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--muted);line-height:1.8">
+        <div style="color:var(--light);font-weight:500;margin-bottom:8px;font-size:12px">📋 개인정보처리방침 (쿠팡 상세페이지 필수 기재)</div>
+        <div>본 판매자는 「개인정보보호법」 제30조에 따라 정보주체의 개인정보를 보호하고 이와 관련한 고충을 원활히 처리하기 위해 다음과 같이 개인정보처리방침을 수립·공개합니다.</div>
+        <div style="margin-top:8px"><b style="color:rgba(245,242,236,0.8)">1. 수집 목적</b> — 구매 상품 배송, 교환·환불 처리, CS 대응</div>
+        <div><b style="color:rgba(245,242,236,0.8)">2. 수집 항목</b> — [필수] 이름, 배송지 주소, 연락처, 이메일</div>
+        <div><b style="color:rgba(245,242,236,0.8)">3. 보유 기간</b> — 전자상거래법에 따라 거래 완료 후 5년 보관 뒤 파기</div>
+        <div><b style="color:rgba(245,242,236,0.8)">4. 제3자 제공</b> — 배송을 위해 물류업체(택배사)에 이름·주소·연락처 제공</div>
+        <div><b style="color:rgba(245,242,236,0.8)">5. 판매자 정보</b> — 판매자: ${sellerEmail} | 작성일: ${today}</div>
+        <div style="margin-top:8px;color:rgba(245,242,236,0.5)">※ 위 문구를 쿠팡 상세페이지 하단에 반드시 기재하세요 (전자상거래법·개인정보보호법 의무)</div>
+      </div>`;
 
     aiCount++;
     document.getElementById("stat-ai").textContent = aiCount;
@@ -985,13 +1009,17 @@ async function saveProduct() {
     try {
       // Firestore에 저장
       const { collection, addDoc, db } = fb;
+      const aiNameEl = document.querySelector(".ai-generated-name");
+      const aiTitle = aiNameEl ? aiNameEl.textContent.trim() : "";
       await addDoc(collection(db, "saved_products"), {
-        uid: currentUser.uid,
-        keyword: currentKeyword,
-        product: selectedProduct,
-        savedAt: Date.now(),
+        uid:       currentUser.uid,
+        keyword:   currentKeyword,
+        product:   selectedProduct,
+        aiTitle:   aiTitle,
+        savedAt:   Date.now(),
       });
       addActivity("green", `<strong>${currentKeyword}</strong> Firebase 저장 완료`, "방금");
+      loadSavedFromFirestore();
     } catch (e) {
       console.warn("Firestore 저장 실패:", e);
     }
@@ -1009,13 +1037,57 @@ async function loadSavedFromFirestore() {
   if (!fb || !currentUser) return;
   try {
     const { collection, getDocs, query, orderBy, limit, db } = fb;
-    const q = query(collection(db, "saved_products"), orderBy("savedAt", "desc"), limit(20));
+    const q = query(collection(db, "saved_products"), orderBy("savedAt", "desc"), limit(50));
     const snap = await getDocs(q);
     const count = snap.size;
-    if (count > 0) {
-      document.getElementById("stat-products").textContent = count;
-      document.getElementById("stat-products-sub").textContent = `↑ ${count}개 저장됨`;
+
+    document.getElementById("stat-products").textContent = count || "0";
+    document.getElementById("stat-products-sub").textContent = count > 0 ? `↑ ${count}개 저장됨` : "저장된 상품 없음";
+
+    if (count === 0) {
+      document.getElementById("saved-products-table").style.display = "none";
+      document.getElementById("saved-products-empty").style.display = "block";
+      return;
     }
+
+    document.getElementById("saved-products-table").style.display = "table";
+    document.getElementById("saved-products-empty").style.display = "none";
+
+    const rows = snap.docs.map(doc => {
+      const d = doc.data();
+      const p = d.product || {};
+      const date = d.savedAt ? new Date(d.savedAt).toLocaleDateString("ko-KR") : "—";
+      const margin = p.margin_rate ?? "—";
+      const marginColor = margin >= 20 ? "var(--green)" : margin >= 10 ? "var(--amber)" : "#EF4444";
+      const wholesale = p.wholesale_price ? `₩${Number(p.wholesale_price).toLocaleString()}` : "—";
+      const aiName = d.aiTitle || p.name || "—";
+
+      return `<tr>
+        <td>
+          <div class="product-name-cell">
+            <div class="product-thumb">📦</div>
+            <div>
+              <div class="product-name" style="font-size:12px">${aiName}</div>
+              <div class="product-source" style="font-size:11px;color:var(--muted)">${p.name || ""}</div>
+            </div>
+          </div>
+        </td>
+        <td style="font-size:12px">${d.keyword || "—"}</td>
+        <td style="font-size:12px;color:var(--muted)">${p.source || "—"}</td>
+        <td style="font-size:12px">${wholesale}</td>
+        <td>
+          <div class="margin-cell">
+            <div class="margin-bar"><div class="margin-fill" style="width:${margin}%;background:${marginColor}"></div></div>
+            <span style="font-size:12px;color:${marginColor}">${margin}%</span>
+          </div>
+        </td>
+        <td style="font-size:11px;color:var(--muted)">${date}</td>
+        <td><span class="status-badge status-draft">초안</span></td>
+      </tr>`;
+    }).join("");
+
+    document.getElementById("saved-products-body").innerHTML = rows;
+    addActivity("green", `등록 상품 현황 불러옴 — <strong>${count}개</strong>`, "방금");
   } catch (e) {
     console.warn("Firestore 불러오기 실패:", e);
   }

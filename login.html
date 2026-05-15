@@ -67,6 +67,12 @@
     if (!email || !password) return showError("이메일과 비밀번호를 입력해주세요");
     if (isSignup && password.length < 6) return showError("비밀번호는 6자 이상이어야 해요");
 
+    if (isSignup) {
+      if (!document.getElementById("agree-age").checked)     return showError("만 14세 이상만 가입할 수 있어요");
+      if (!document.getElementById("agree-terms").checked)   return showError("이용약관에 동의해주세요");
+      if (!document.getElementById("agree-privacy").checked) return showError("개인정보처리방침에 동의해주세요");
+    }
+
     setLoading(true);
     try {
       let cred;
@@ -85,6 +91,12 @@
 
   // ── 구글 로그인 ──
   window.loginWithGoogle = async function () {
+    const isSignup = document.getElementById("mode-signup").classList.contains("active");
+    if (isSignup) {
+      if (!document.getElementById("agree-age").checked)     return showError("만 14세 이상만 가입할 수 있어요");
+      if (!document.getElementById("agree-terms").checked)   return showError("이용약관에 동의해주세요");
+      if (!document.getElementById("agree-privacy").checked) return showError("개인정보처리방침에 동의해주세요");
+    }
     setLoading(true);
     try {
       const cred = await signInWithPopup(auth, provider);
@@ -430,6 +442,30 @@ body::before {
       </div>
     </div>
 
+    <!-- 회원가입 약관 동의 (회원가입 모드에서만) -->
+    <div id="signup-terms" style="display:none;margin-bottom:16px;padding:14px;background:var(--dark3);border-radius:8px;border:1px solid var(--border)">
+      <label style="display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <input type="checkbox" id="agree-all" onchange="toggleAllTerms(this)" style="accent-color:var(--hot);width:14px;height:14px;flex-shrink:0">
+        <span style="color:var(--light);font-weight:500">전체 동의</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="agree-age" style="accent-color:var(--hot);width:14px;height:14px;flex-shrink:0;margin-top:1px">
+        <span>[필수] 만 14세 이상입니다</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="agree-terms" style="accent-color:var(--hot);width:14px;height:14px;flex-shrink:0;margin-top:1px">
+        <span>[필수] <a href="#" style="color:var(--hot2);text-decoration:underline" onclick="event.preventDefault()">서비스 이용약관</a> 동의</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:var(--muted);cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="agree-privacy" style="accent-color:var(--hot);width:14px;height:14px;flex-shrink:0;margin-top:1px">
+        <span>[필수] <a href="#" style="color:var(--hot2);text-decoration:underline" onclick="event.preventDefault()">개인정보처리방침</a> 동의</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:10px;font-size:12px;color:var(--muted);cursor:pointer">
+        <input type="checkbox" id="agree-marketing" style="accent-color:var(--hot);width:14px;height:14px;flex-shrink:0;margin-top:1px">
+        <span>[선택] 마케팅 정보 수신 동의 (이메일/앱 푸시)</span>
+      </label>
+    </div>
+
     <!-- 비밀번호 찾기 (로그인 모드에서만) -->
     <span class="forgot" id="forgot-link" onclick="resetPassword()">비밀번호를 잊었나요?</span>
 
@@ -476,8 +512,15 @@ function switchMode(mode) {
   document.getElementById("mode-login").classList.toggle("active",  isLogin);
   document.getElementById("mode-signup").classList.toggle("active", !isLogin);
   document.getElementById("btn-label").textContent  = isLogin ? "로그인" : "회원가입";
-  document.getElementById("forgot-link").style.display = isLogin ? "block" : "none";
+  document.getElementById("forgot-link").style.display  = isLogin ? "block" : "none";
+  document.getElementById("signup-terms").style.display = isLogin ? "none"  : "block";
   clearMsg();
+}
+
+function toggleAllTerms(el) {
+  ["agree-age","agree-terms","agree-privacy","agree-marketing"].forEach(id => {
+    document.getElementById(id).checked = el.checked;
+  });
 }
 
 // ── 비밀번호 토글 ──────────────────────────────
